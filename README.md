@@ -26,6 +26,7 @@ Or manually: `npm install && npm run dist`
 
 - **Rooms & zones**: on/off, brightness, white temperature, color picker, scenes, presets
 - **Individual lights**: per-bulb control, unreachable bulbs are greyed out
+- **Manage**: rename lights, rooms and zones, create/delete rooms and zones, move lights between rooms, save the current state as a scene, delete scenes, make a light blink to identify it. Stored on the bridge, so the Hue app sees it too
 - **Global hotkeys**: fully configurable, record any combo in the Hotkeys tab
 - **On-screen display**: small popup at the bottom of your screen when a hotkey fires (with brightness bar)
 - **Tray menu**: toggle, scenes, presets, sleep timer, pause hotkeys (e.g. while gaming)
@@ -54,7 +55,7 @@ The "hotkey room" is set with the **Set as target** button on a room card, or pe
 ## Development
 
 ```bash
-npm test                     # 14 tests against a fake bridge
+npm test                     # tests against a fake bridge
 node test/mock-bridge.js 8080  # run a fake bridge, pair with IP 127.0.0.1:8080
 ```
 
@@ -67,6 +68,8 @@ src/
   hue.js         Hue bridge client (local v1 API) + data model
   actions.js     Shared actions for hotkeys, tray and UI
   alarms.js      Wake-up schedules stored on the bridge
+  manage.js      Renaming, rooms/zones, light membership, scenes
+  updater.js     Auto-updates via GitHub Releases
   color.js       Hex to CIE xy conversion
   store.js       JSON config
   renderer/      UI

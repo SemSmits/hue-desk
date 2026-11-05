@@ -8,6 +8,7 @@ const { hexToXy } = require('./color');
 const { createActionRunner, PRESETS, ACTIONS } = require('./actions');
 const { buildWakeSchedule, parseAlarms } = require('./alarms');
 const { createUpdater } = require('./updater');
+const { createManager, ROOM_CLASSES } = require('./manage');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -245,7 +246,7 @@ function handle(channel, fn) {
 
 function registerIpc() {
   handle('config:get', () => store.get());
-  handle('meta:get', () => ({ version: app.getVersion(), actions: ACTIONS, presets: Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.label])) }));
+  handle('meta:get', () => ({ version: app.getVersion(), roomClasses: ROOM_CLASSES, actions: ACTIONS, presets: Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.label])) }));
 
   handle('config:set', (patch) => {
     const allowed = ['defaultGroup', 'osd', 'launchAtLogin', 'startHidden', 'closeToTray', 'autoUpdate'];
@@ -261,6 +262,23 @@ function registerIpc() {
     rebuildTrayMenu();
     return next;
   });
+
+  const manager = createManager(() => client);
+  const managed = (fn) => async (...args) => {
+    const result = await fn(...args);
+    snapshotCache.at = 0;
+    notifyRenderer('state-dirty');
+    return result;
+  };
+  handle('manage:renameLight', managed((id, name) => manager.renameLight(id, name)));
+  handle('manage:renameGroup', managed((id, name) => manager.renameGroup(id, name)));
+  handle('manage:createGroup', managed((group) => manager.createGroup(group)));
+  handle('manage:deleteGroup', managed((id) => manager.deleteGroup(id)));
+  handle('manage:setGroupLights', managed((id, lights) => manager.setGroupLights(id, lights)));
+  handle('manage:moveLight', managed((id, roomId) => manager.moveLight(id, roomId)));
+  handle('manage:saveScene', managed((groupId, name) => manager.saveScene(groupId, name)));
+  handle('manage:deleteScene', managed((id) => manager.deleteScene(id)));
+  handle('manage:identify', (id) => manager.identifyLight(id));
 
   handle('update:status', () => updater.getStatus());
   handle('update:check', () => updater.check());

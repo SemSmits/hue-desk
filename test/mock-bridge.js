@@ -31,6 +31,8 @@ function createState() {
     },
     schedules: {},
     nextSchedule: 1,
+    nextGroup: 10,
+    nextScene: 1,
   };
 }
 
@@ -79,6 +81,44 @@ function startMockBridge(port = 0) {
       if (req.method === 'PUT' && (mm = /^\/lights\/(\w+)\/state$/.exec(p))) {
         Object.assign(st.lights[mm[1]].state, body);
         return send([{ success: {} }]);
+      }
+      const roomConflict = (gid, lights) => Object.entries(st.groups).find(([id, g]) =>
+        id !== gid && g.type === 'Room' && (g.lights || []).some((l) => lights.includes(l)));
+
+      if (req.method === 'PUT' && (mm = /^\/lights\/(\w+)$/.exec(p))) {
+        if (!st.lights[mm[1]]) return send([{ error: { type: 3, description: 'light not available' } }]);
+        Object.assign(st.lights[mm[1]], body);
+        return send([{ success: { [`/lights/${mm[1]}/name`]: body.name } }]);
+      }
+      if (req.method === 'PUT' && (mm = /^\/groups\/(\w+)$/.exec(p))) {
+        const g = st.groups[mm[1]];
+        if (!g) return send([{ error: { type: 3, description: 'group not available' } }]);
+        if (body.lights && g.type === 'Room' && roomConflict(mm[1], body.lights)) {
+          return send([{ error: { type: 7, description: 'light already in another room' } }]);
+        }
+        Object.assign(g, body);
+        return send([{ success: {} }]);
+      }
+      if (req.method === 'POST' && p === '/groups') {
+        if (body.type === 'Room' && roomConflict(null, body.lights || [])) {
+          return send([{ error: { type: 7, description: 'light already in another room' } }]);
+        }
+        const id = String(st.nextGroup++);
+        st.groups[id] = { ...body, state: { any_on: false, all_on: false }, action: { on: false, bri: 1, effect: 'none' } };
+        return send([{ success: { id } }]);
+      }
+      if (req.method === 'DELETE' && (mm = /^\/groups\/(\w+)$/.exec(p))) {
+        delete st.groups[mm[1]];
+        return send([{ success: `/groups/${mm[1]} deleted` }]);
+      }
+      if (req.method === 'POST' && p === '/scenes') {
+        const id = `new${st.nextScene++}`;
+        st.scenes[id] = { ...body, lights: (st.groups[body.group] || {}).lights || [] };
+        return send([{ success: { id } }]);
+      }
+      if (req.method === 'DELETE' && (mm = /^\/scenes\/(\w+)$/.exec(p))) {
+        delete st.scenes[mm[1]];
+        return send([{ success: `/scenes/${mm[1]} deleted` }]);
       }
       if (req.method === 'GET' && p === '/schedules') return send(st.schedules);
       if (req.method === 'POST' && p === '/schedules') {

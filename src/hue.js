@@ -64,6 +64,13 @@ function buildModel({ lights = {}, groups = {}, group0 = null, scenes = {} }) {
     ...lightCapabilities(l),
   }));
   const lightById = new Map(lightList.map((l) => [l.id, l]));
+  for (const [gid, g] of Object.entries(groups)) {
+    if (g.type !== 'Room') continue;
+    for (const lid of g.lights || []) {
+      const light = lightById.get(lid);
+      if (light) light.roomId = gid;
+    }
+  }
 
   const sceneList = Object.entries(scenes)
     .filter(([, s]) => !s.recycle)
@@ -181,6 +188,30 @@ class HueClient {
 
   deleteSchedule(id) {
     return this.request('DELETE', `/schedules/${id}`);
+  }
+
+  updateLight(id, attrs) {
+    return this.request('PUT', `/lights/${id}`, attrs);
+  }
+
+  updateGroup(id, attrs) {
+    return this.request('PUT', `/groups/${id}`, attrs);
+  }
+
+  createGroup(group) {
+    return this.request('POST', '/groups', group);
+  }
+
+  deleteGroup(id) {
+    return this.request('DELETE', `/groups/${id}`);
+  }
+
+  createScene(scene) {
+    return this.request('POST', '/scenes', scene);
+  }
+
+  deleteScene(id) {
+    return this.request('DELETE', `/scenes/${id}`);
   }
 }
 

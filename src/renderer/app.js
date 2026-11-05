@@ -15,6 +15,9 @@ const S = {
   recording: null,
   alarms: null,
   update: null,
+  manageOpen: new Set(),
+  confirmDelete: null,
+  newGroup: { name: '', type: 'Room', roomClass: 'Other' },
   setup: { bridges: [], ip: '', status: '', pairing: false },
 };
 
@@ -295,6 +298,151 @@ function renderLights() {
         switchEl(l.on, (on) => set(l.id, { on }))))));
 }
 
+// ---------- Manage ----------
+
+async function manageCall(channel, ...args) {
+  try {
+    const res = await call(channel, ...args);
+    await refresh(true);
+    return res;
+  } catch {
+    render(); // restore original values in inputs
+    return undefined;
+  }
+}
+
+function nameInput(value, onSave) {
+  return h('input', {
+    type: 'text', class: 'name-input', value, maxlength: 32, title: 'Click to rename',
+    onfocus: (e) => e.target.select(),
+    onkeydown: (e) => {
+      if (e.key === 'Enter') e.target.blur();
+      if (e.key === 'Escape') { e.target.value = value; e.target.blur(); }
+    },
+    onchange: (e) => {
+      const next = e.target.value.trim();
+      if (next && next !== value) onSave(next);
+      else e.target.value = value;
+    },
+  });
+}
+
+function deleteButton(key, label, onConfirm) {
+  const armed = S.confirmDelete === key;
+  return h('button', {
+    class: `btn small danger${armed ? ' active' : ''}`,
+    onclick: () => {
+      if (armed) {
+        S.confirmDelete = null;
+        onConfirm();
+      } else {
+        S.confirmDelete = key;
+        render();
+        setTimeout(() => { if (S.confirmDelete === key) { S.confirmDelete = null; render(); } }, 3000);
+      }
+    },
+  }, armed ? 'Sure?' : label);
+}
+
+function groupPanel(g) {
+  const rooms = new Map(S.snap.groups.filter((x) => x.type === 'Room').map((x) => [x.id, x.name]));
+  let sceneName = '';
+  const toggleLight = (lightId) => {
+    const next = g.lights.includes(lightId) ? g.lights.filter((l) => l !== lightId) : [...g.lights, lightId];
+    manageCall('manage:setGroupLights', g.id, next);
+  };
+
+  return h('div', { class: 'panel' },
+    h('div', { class: 'label' }, h('span', {}, g.type === 'Room'
+      ? 'Lights (a light can only be in one room, adding it here moves it)'
+      : 'Lights (zones can share lights with rooms)')),
+    h('div', { class: 'chips' }, S.snap.lights.map((l) => {
+      const inGroup = g.lights.includes(l.id);
+      const elsewhere = g.type === 'Room' && !inGroup && l.roomId ? ` · ${rooms.get(l.roomId) || ''}` : '';
+      return h('span', { class: `chip${inGroup ? ' selected' : ''}`, onclick: () => toggleLight(l.id) },
+        `${inGroup ? '✓ ' : '+ '}${l.name}`, elsewhere && h('span', { class: 'muted' }, elsewhere));
+    })),
+    h('div', { class: 'label mt-10' }, h('span', {}, 'Scenes')),
+    h('div', { class: 'chips' },
+      g.scenes.length === 0 && h('span', { class: 'muted' }, 'No scenes yet'),
+      g.scenes.map((sc) => h('span', { class: 'chip' }, sc.name,
+        h('span', { class: 'chip-x', title: 'Delete scene', onclick: () => manageCall('manage:deleteScene', sc.id) }, '×')))),
+    h('div', { class: 'row mt-10' },
+      h('input', {
+        type: 'text', maxlength: 32, placeholder: 'New scene name',
+        oninput: (e) => { sceneName = e.target.value; },
+        onkeydown: (e) => { if (e.key === 'Enter' && sceneName.trim()) manageCall('manage:saveScene', g.id, sceneName); },
+      }),
+      h('button', {
+        class: 'btn small',
+        onclick: () => (sceneName.trim() ? manageCall('manage:saveScene', g.id, sceneName) : toast('Give the scene a name first', true)),
+      }, 'Save current state as scene')));
+}
+
+function renderManage() {
+  if (!S.snap) return h('p', { class: 'muted' }, S.error || 'Loading...');
+  const groups = S.snap.groups.filter((g) => g.id !== '0');
+  const rooms = groups.filter((g) => g.type === 'Room');
+  const ng = S.newGroup;
+
+  const create = async () => {
+    if (!ng.name.trim()) return toast('Enter a name first', true);
+    const id = await manageCall('manage:createGroup', { name: ng.name, type: ng.type, roomClass: ng.roomClass });
+    if (id) {
+      S.newGroup = { name: '', type: ng.type, roomClass: 'Other' };
+      S.manageOpen.add(id);
+      toast(`${ng.type} created, now add some lights`);
+      render();
+    }
+  };
+
+  return h('div', {},
+    h('h1', {}, 'Manage'),
+    h('p', { class: 'sub' }, 'Changes are saved on your bridge, so they show up in the Hue app too.'),
+
+    h('div', { class: 'card' },
+      h('div', { class: 'card-title' }, 'Rooms & zones'),
+      groups.map((g) => {
+        const open = S.manageOpen.has(g.id);
+        return h('div', { class: 'manage-row' },
+          h('div', { class: 'row' },
+            nameInput(g.name, (name) => manageCall('manage:renameGroup', g.id, name)),
+            h('span', { class: 'badge' }, g.type === 'Room' && g.class ? `Room · ${g.class}` : g.type),
+            h('span', { class: 'card-meta' }, `${g.lights.length} light${g.lights.length === 1 ? '' : 's'} · ${g.scenes.length} scene${g.scenes.length === 1 ? '' : 's'}`),
+            h('div', { class: 'spacer' }),
+            h('button', {
+              class: `btn small${open ? ' active' : ''}`,
+              onclick: () => { open ? S.manageOpen.delete(g.id) : S.manageOpen.add(g.id); render(); },
+            }, open ? 'Close' : 'Lights & scenes'),
+            deleteButton(`group-${g.id}`, 'Delete', () => manageCall('manage:deleteGroup', g.id))),
+          open && groupPanel(g));
+      }),
+      h('div', { class: 'row new-group' },
+        h('input', { type: 'text', maxlength: 32, placeholder: 'New room or zone name', value: ng.name, oninput: (e) => { ng.name = e.target.value; }, onkeydown: (e) => e.key === 'Enter' && create() }),
+        h('select', { value: ng.type, onchange: (e) => { ng.type = e.target.value; render(); } },
+          h('option', { value: 'Room' }, 'Room'), h('option', { value: 'Zone' }, 'Zone')),
+        ng.type === 'Room' && h('select', { value: ng.roomClass, onchange: (e) => { ng.roomClass = e.target.value; } },
+          S.meta.roomClasses.map((c) => h('option', { value: c }, c))),
+        h('button', { class: 'btn primary', onclick: create }, 'Create'))),
+
+    h('div', { class: 'card mt-16' },
+      h('div', { class: 'card-title' }, 'Lights'),
+      S.snap.lights.map((l) => h('div', { class: `row manage-row${l.reachable ? '' : ' unreachable'}` },
+        nameInput(l.name, (name) => manageCall('manage:renameLight', l.id, name)),
+        h('span', { class: 'card-meta' }, l.type),
+        h('div', { class: 'spacer' }),
+        h('select', {
+          value: l.roomId || '',
+          title: 'Room',
+          onchange: (e) => manageCall('manage:moveLight', l.id, e.target.value),
+        }, h('option', { value: '' }, 'No room'), rooms.map((r) => h('option', { value: r.id }, r.name))),
+        h('button', {
+          class: 'btn small',
+          title: 'Make this light blink for a few seconds',
+          onclick: () => call('manage:identify', l.id).then(() => toast(`${l.name} is blinking`)).catch(() => {}),
+        }, 'Identify')))));
+}
+
 // ---------- Hotkeys ----------
 
 const KEY_MAP = {
@@ -545,6 +693,7 @@ function render() {
   if (!paired) content = renderSetup();
   else if (S.tab === 'rooms') content = renderRooms();
   else if (S.tab === 'lights') content = renderLights();
+  else if (S.tab === 'manage') content = renderManage();
   else if (S.tab === 'hotkeys') content = renderHotkeys();
   else if (S.tab === 'alarms') content = renderAlarms();
   else content = renderSettings();
