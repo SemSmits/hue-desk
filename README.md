@@ -22,10 +22,6 @@ npm start
 
 Or manually: `npm install && npm run dist`
 
-**Releasing an update:** bump `version` in `package.json`, push, then create a GitHub release with a matching tag (e.g. `v1.2.0`). The workflow attaches the exe, `latest.yml` and blockmap, and installed apps pick it up automatically. The repo must be public for this, since the updater can't read private releases without a token.
-
-**Via GitHub:** push the repo, then push a tag (`git tag v1.0.0 && git push --tags`). GitHub Actions builds the exe on Windows and attaches it to a release. You can also run it by hand under Actions > Build Windows installer.
-
 ## Features
 
 - **Rooms & zones**: on/off, brightness, white temperature, color picker, scenes, presets
