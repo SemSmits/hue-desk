@@ -8,6 +8,7 @@ const CHANNELS = [
   'hue:snapshot', 'hue:setGroup', 'hue:setLight', 'hue:action',
   'alarms:list', 'alarms:create', 'alarms:toggle', 'alarms:delete',
   'hotkeys:set', 'hotkeys:suspend',
+  'update:status', 'update:check', 'update:install',
 ];
 
 contextBridge.exposeInMainWorld('hue', {
@@ -22,7 +23,7 @@ contextBridge.exposeInMainWorld('hue', {
     return res.data;
   },
   on: (channel, fn) => {
-    if (!['state-dirty', 'osd'].includes(channel)) return;
+    if (!['state-dirty', 'osd', 'update-status'].includes(channel)) return;
     ipcRenderer.on(channel, (_e, payload) => fn(payload));
   },
 });

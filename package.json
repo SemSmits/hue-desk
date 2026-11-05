@@ -1,6 +1,6 @@
 {
   "name": "hue-desk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop app to control Philips Hue lights with global hotkeys, scenes, sleep timer and wake-up alarms.",
   "main": "src/main.js",
   "scripts": {
@@ -10,6 +10,9 @@
   },
   "author": "Sem Smits",
   "license": "MIT",
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0"
@@ -44,6 +47,13 @@
     },
     "portable": {
       "artifactName": "HueDesk-Portable-${version}.exe"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SemSmits",
+        "repo": "hue-desk"
+      }
+    ]
   }
 }

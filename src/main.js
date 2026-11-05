@@ -7,6 +7,7 @@ const { Store } = require('./store');
 const { hexToXy } = require('./color');
 const { createActionRunner, PRESETS, ACTIONS } = require('./actions');
 const { buildWakeSchedule, parseAlarms } = require('./alarms');
+const { createUpdater } = require('./updater');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -25,6 +26,7 @@ let tray = null;
 let quitting = false;
 let hotkeysPaused = false;
 let snapshotCache = { at: 0, data: null };
+let updater = null;
 
 // ---------- Hue client & state ----------
 
@@ -169,6 +171,9 @@ function rebuildTrayMenu() {
 
   const menu = Menu.buildFromTemplate([
     { label: 'Open Hue Desk', click: showMainWindow },
+    ...(updater && updater.getStatus().state === 'ready'
+      ? [{ label: `Restart to update (v${updater.getStatus().version})`, click: () => updater.installNow() }]
+      : []),
     { type: 'separator' },
     { label: room ? `Toggle ${room.name}` : 'Toggle lights', click: fire({ action: 'toggle' }), enabled: Boolean(client) },
     { label: 'All lights off', click: fire({ action: 'allOff' }), enabled: Boolean(client) },
@@ -240,18 +245,26 @@ function handle(channel, fn) {
 
 function registerIpc() {
   handle('config:get', () => store.get());
-  handle('meta:get', () => ({ actions: ACTIONS, presets: Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.label])) }));
+  handle('meta:get', () => ({ version: app.getVersion(), actions: ACTIONS, presets: Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.label])) }));
 
   handle('config:set', (patch) => {
-    const allowed = ['defaultGroup', 'osd', 'launchAtLogin', 'startHidden', 'closeToTray'];
+    const allowed = ['defaultGroup', 'osd', 'launchAtLogin', 'startHidden', 'closeToTray', 'autoUpdate'];
     const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k)));
     const next = store.set(clean);
     if ('launchAtLogin' in clean) {
       app.setLoginItemSettings({ openAtLogin: Boolean(clean.launchAtLogin), args: ['--hidden'] });
     }
+    if ('autoUpdate' in clean) {
+      if (clean.autoUpdate) updater.start();
+      else updater.stop();
+    }
     rebuildTrayMenu();
     return next;
   });
+
+  handle('update:status', () => updater.getStatus());
+  handle('update:check', () => updater.check());
+  handle('update:install', () => updater.installNow());
 
   handle('bridge:discover', () => HueClient.discover());
   handle('bridge:pair', async (ip) => {
@@ -306,6 +319,17 @@ function registerIpc() {
 app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'config.json'));
   connectFromConfig();
+  updater = createUpdater({
+    app,
+    onStatus: (status) => {
+      notifyRenderer('update-status', status);
+      rebuildTrayMenu();
+      if (status.state === 'ready') {
+        showOsd({ title: 'Hue Desk', value: `Update v${status.version} ready, restart to install` });
+      }
+    },
+    beforeInstall: () => { quitting = true; },
+  });
   registerIpc();
 
   const startHidden = process.argv.includes('--hidden') || store.get().startHidden;
@@ -314,6 +338,7 @@ app.whenReady().then(() => {
   createTray();
   applyHotkeys();
   getSnapshot().catch(() => {});
+  if (store.get().autoUpdate) updater.start();
 });
 
 app.on('second-instance', showMainWindow);

@@ -22,6 +22,8 @@ npm start
 
 Or manually: `npm install && npm run dist`
 
+**Releasing an update:** bump `version` in `package.json`, push, then create a GitHub release with a matching tag (e.g. `v1.2.0`). The workflow attaches the exe, `latest.yml` and blockmap, and installed apps pick it up automatically. The repo must be public for this, since the updater can't read private releases without a token.
+
 **Via GitHub:** push the repo, then push a tag (`git tag v1.0.0 && git push --tags`). GitHub Actions builds the exe on Windows and attaches it to a release. You can also run it by hand under Actions > Build Windows installer.
 
 ## Features
@@ -36,6 +38,7 @@ Or manually: `npm install && npm run dist`
 - **Party mode**: color loop effect
 - **Blink**: makes a room flash so you can see which one it is
 - **Start with Windows**, start hidden, close to tray
+- **Auto-updates**: checks GitHub Releases every 6 hours, downloads in the background and installs on restart (installer version only, not the portable exe)
 
 ## Default hotkeys
 

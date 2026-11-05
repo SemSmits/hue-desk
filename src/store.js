@@ -24,6 +24,7 @@ const DEFAULTS = {
   launchAtLogin: false,
   startHidden: false,
   closeToTray: true,
+  autoUpdate: true,
 };
 
 class Store {

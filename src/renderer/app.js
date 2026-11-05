@@ -14,6 +14,7 @@ const S = {
   failedHotkeys: [],
   recording: null,
   alarms: null,
+  update: null,
   setup: { bridges: [], ip: '', status: '', pairing: false },
 };
 
@@ -474,8 +475,38 @@ function renderAlarms() {
 
 // ---------- Settings ----------
 
+function updateText(u) {
+  if (!u) return 'Loading...';
+  switch (u.state) {
+    case 'checking': return 'Checking for updates...';
+    case 'upToDate': return 'You are on the latest version';
+    case 'downloading': return `Downloading v${u.version}... ${u.percent || 0}%`;
+    case 'ready': return `v${u.version} is ready to install`;
+    case 'error': return `Update check failed: ${u.message}`;
+    case 'unsupported': return u.message;
+    default: return 'Not checked yet';
+  }
+}
+
+function renderUpdateCard(c, set, row) {
+  const u = S.update;
+  const supported = u && u.state !== 'unsupported';
+  return h('div', { class: 'card mt-16' },
+    row(`Hue Desk v${S.meta.version}`, updateText(u),
+      u && u.state === 'ready'
+        ? h('button', { class: 'btn primary', onclick: () => call('update:install') }, 'Restart & update')
+        : h('button', {
+          class: 'btn',
+          disabled: !supported || (u && (u.state === 'checking' || u.state === 'downloading')),
+          onclick: async () => { S.update = await call('update:check'); render(); },
+        }, 'Check for updates')),
+    row('Automatic updates', 'Check GitHub for new versions and install them on restart',
+      switchEl(c.autoUpdate, (v) => set({ autoUpdate: v }))));
+}
+
 function renderSettings() {
   const c = S.config;
+  if (S.update == null) api.invoke('update:status').then((u) => { S.update = u; if (S.tab === 'settings') render(); }).catch(() => {});
   const set = async (patch) => { S.config = await call('config:set', patch); render(); };
   const roomSelect = groupOptions(c.defaultGroup || '0');
   roomSelect.onchange = (e) => set({ defaultGroup: e.target.value });
@@ -492,6 +523,7 @@ function renderSettings() {
       row('Start with Windows', 'Launch hidden in the tray on login', switchEl(c.launchAtLogin, (v) => set({ launchAtLogin: v }))),
       row('Start hidden', 'Only show the tray icon on start', switchEl(c.startHidden, (v) => set({ startHidden: v }))),
       row('Close to tray', 'Keep running (and hotkeys active) when closing the window', switchEl(c.closeToTray, (v) => set({ closeToTray: v })))),
+    renderUpdateCard(c, set, row),
     h('div', { class: 'card mt-16' },
       row('Bridge', c.bridge ? c.bridge.ip : 'Not paired',
         h('button', {
@@ -537,6 +569,11 @@ window.addEventListener('pointerdown', () => { S.pointerDown = true; });
 window.addEventListener('pointerup', () => { S.pointerDown = false; S.interactingUntil = Date.now() + 1200; });
 
 api.on('state-dirty', () => refresh());
+api.on('update-status', (u) => {
+  S.update = u;
+  if (u.state === 'ready') toast(`Update v${u.version} downloaded, restart to install`);
+  if (S.tab === 'settings' && !isInteracting()) render();
+});
 
 (async () => {
   await loadConfig();
