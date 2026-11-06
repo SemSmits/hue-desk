@@ -15,6 +15,7 @@ const S = {
   recording: null,
   alarms: null,
   update: null,
+  loginStatus: null,
   manageOpen: new Set(),
   confirmDelete: null,
   newGroup: { name: '', type: 'Room', roomClass: 'Other' },
@@ -654,8 +655,18 @@ function renderUpdateCard(c, set, row) {
 
 function renderSettings() {
   const c = S.config;
+  if (S.loginStatus == null) api.invoke('loginItem:status').then((st) => { S.loginStatus = st; if (S.tab === 'settings') render(); }).catch(() => {});
   if (S.update == null) api.invoke('update:status').then((u) => { S.update = u; if (S.tab === 'settings') render(); }).catch(() => {});
-  const set = async (patch) => { S.config = await call('config:set', patch); render(); };
+  const set = async (patch) => {
+    S.config = await call('config:set', patch);
+    if ('launchAtLogin' in patch) S.loginStatus = await api.invoke('loginItem:status').catch(() => null);
+    render();
+  };
+  const ls = S.loginStatus;
+  const loginDesc = !ls ? 'Launch hidden in the tray on login'
+    : !ls.supported || ls.blocked ? ls.message
+      : c.launchAtLogin && !ls.enabled ? 'Not registered with Windows yet, toggle it off and on'
+        : 'Launch hidden in the tray on login';
   const roomSelect = groupOptions(c.defaultGroup || '0');
   roomSelect.onchange = (e) => set({ defaultGroup: e.target.value });
 
@@ -668,7 +679,7 @@ function renderSettings() {
     h('div', { class: 'card' },
       row('Hotkey room', 'Room controlled by hotkeys and the tray menu', roomSelect),
       row('On-screen display', 'Small popup when a hotkey fires', switchEl(c.osd, (v) => set({ osd: v }))),
-      row('Start with Windows', 'Launch hidden in the tray on login', switchEl(c.launchAtLogin, (v) => set({ launchAtLogin: v }))),
+      row('Start with Windows', loginDesc, switchEl(c.launchAtLogin, (v) => set({ launchAtLogin: v }))),
       row('Start hidden', 'Only show the tray icon on start', switchEl(c.startHidden, (v) => set({ startHidden: v }))),
       row('Close to tray', 'Keep running (and hotkeys active) when closing the window', switchEl(c.closeToTray, (v) => set({ closeToTray: v })))),
     renderUpdateCard(c, set, row),

@@ -9,6 +9,7 @@ const { createActionRunner, PRESETS, ACTIONS } = require('./actions');
 const { buildWakeSchedule, parseAlarms } = require('./alarms');
 const { createUpdater } = require('./updater');
 const { createManager, ROOM_CLASSES } = require('./manage');
+const { createLoginItem } = require('./loginItem');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -28,6 +29,7 @@ let quitting = false;
 let hotkeysPaused = false;
 let snapshotCache = { at: 0, data: null };
 let updater = null;
+let loginItem = null;
 
 // ---------- Hue client & state ----------
 
@@ -252,9 +254,7 @@ function registerIpc() {
     const allowed = ['defaultGroup', 'osd', 'launchAtLogin', 'startHidden', 'closeToTray', 'autoUpdate'];
     const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k)));
     const next = store.set(clean);
-    if ('launchAtLogin' in clean) {
-      app.setLoginItemSettings({ openAtLogin: Boolean(clean.launchAtLogin), args: ['--hidden'] });
-    }
+    if ('launchAtLogin' in clean) loginItem.apply(clean.launchAtLogin);
     if ('autoUpdate' in clean) {
       if (clean.autoUpdate) updater.start();
       else updater.stop();
@@ -280,6 +280,7 @@ function registerIpc() {
   handle('manage:deleteScene', managed((id) => manager.deleteScene(id)));
   handle('manage:identify', (id) => manager.identifyLight(id));
 
+  handle('loginItem:status', () => loginItem.status());
   handle('update:status', () => updater.getStatus());
   handle('update:check', () => updater.check());
   handle('update:install', () => updater.installNow());
@@ -336,6 +337,9 @@ function registerIpc() {
 
 app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'config.json'));
+  loginItem = createLoginItem({ app });
+  // Re-sync on every start so the registry always points at the current exe
+  loginItem.apply(store.get().launchAtLogin);
   connectFromConfig();
   updater = createUpdater({
     app,
@@ -350,9 +354,14 @@ app.whenReady().then(() => {
   });
   registerIpc();
 
-  const startHidden = process.argv.includes('--hidden') || store.get().startHidden;
+  const startedAtLogin = process.argv.includes('--hidden');
+  const startHidden = startedAtLogin || store.get().startHidden;
   createMainWindow(!startHidden);
   createOsdWindow();
+  if (startHidden) {
+    // Small confirmation so it's clear the app is running in the tray
+    setTimeout(() => showOsd({ title: 'Hue Desk', value: 'Running in the tray, hotkeys active' }), 4000);
+  }
   createTray();
   applyHotkeys();
   getSnapshot().catch(() => {});

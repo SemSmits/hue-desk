@@ -1,6 +1,6 @@
 {
   "name": "hue-desk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Desktop app to control Philips Hue lights with global hotkeys, scenes, sleep timer and wake-up alarms.",
   "main": "src/main.js",
   "scripts": {

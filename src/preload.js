@@ -8,7 +8,7 @@ const CHANNELS = [
   'hue:snapshot', 'hue:setGroup', 'hue:setLight', 'hue:action',
   'alarms:list', 'alarms:create', 'alarms:toggle', 'alarms:delete',
   'hotkeys:set', 'hotkeys:suspend',
-  'update:status', 'update:check', 'update:install',
+  'update:status', 'update:check', 'update:install', 'loginItem:status',
   'manage:renameLight', 'manage:renameGroup', 'manage:createGroup', 'manage:deleteGroup',
   'manage:setGroupLights', 'manage:moveLight', 'manage:saveScene', 'manage:deleteScene', 'manage:identify',
 ];
