@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; background: #0f1115; color: #e9ebef;
+  font: 14px/1.4 'Segoe UI', system-ui, -apple-system, sans-serif;
+  display: flex; align-items: center; justify-content: center;
+}
+.box {
+  width: 340px; padding: 28px; border-radius: 16px;
+  background: #171a21; border: 1px solid #2a2f3a;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.brand { font-weight: 700; font-size: 20px; display: flex; align-items: center; gap: 10px; }
+.dot { width: 12px; height: 12px; border-radius: 50%; background: #ffc857; box-shadow: 0 0 14px #ffc857; }
+.muted { color: #8b92a0; margin: 0; }
+input {
+  background: #1e222b; color: #e9ebef; border: 1px solid #2a2f3a;
+  border-radius: 10px; padding: 10px 12px; font: inherit;
+}
+input:focus { outline: none; border-color: #ffc857; }
+button {
+  background: #ffc857; color: #1a1405; border: 0; border-radius: 10px;
+  padding: 10px; font: inherit; font-weight: 600; cursor: pointer;
+}
+button:disabled { opacity: .6; }
+.error { color: #ff6b6b; margin: 0; min-height: 1.4em; }

@@ -105,7 +105,7 @@ input[type=range].ct { background: linear-gradient(90deg, #cfe4ff, #fff4e0, #ffb
 
 input[type=color] { width: 36px; height: 28px; border: 1px solid var(--border); border-radius: 8px; background: none; padding: 2px; cursor: pointer; }
 
-select, input[type=text], input[type=time], input[type=number] {
+select, input[type=text], input[type=password], input[type=time], input[type=number] {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
   border-radius: 9px; padding: 7px 10px; font: inherit; font-size: 13px;
 }
@@ -171,3 +171,17 @@ kbd, .kbd {
 .chip-x { margin-left: 6px; color: var(--muted); cursor: pointer; }
 .chip-x:hover { color: var(--danger); }
 .new-group { border-top: 1px solid var(--border); padding-top: 14px; }
+
+/* Web access */
+.url { font-family: ui-monospace, Consolas, monospace; color: var(--accent); padding: 4px 0; user-select: text; }
+.error-text { color: var(--danger); font-size: 13px; }
+
+/* Small screens (phone / narrow VM window in web mode) */
+@media (max-width: 720px) {
+  body { flex-direction: column; }
+  .sidebar { width: auto; flex-direction: row; align-items: center; padding: 10px; gap: 10px; overflow-x: auto; }
+  .sidebar nav { flex-direction: row; }
+  .sidebar .status { display: none; }
+  main { padding: 16px; }
+  .grid { grid-template-columns: 1fr; }
+}

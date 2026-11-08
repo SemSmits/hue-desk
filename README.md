@@ -35,6 +35,7 @@ Or manually: `npm install && npm run dist`
 - **Party mode**: color loop effect
 - **Blink**: makes a room flash so you can see which one it is
 - **Start with Windows**, start hidden, close to tray
+- **Web access**: control Hue Desk from a browser on your home network (another PC, a VM, your phone). Turn it on in Settings, set a password and open the address it shows. Password protected with rate limiting; hotkeys keep running on the PC
 - **Auto-updates**: checks GitHub Releases every 6 hours, downloads in the background and installs on restart (installer version only, not the portable exe)
 
 ## Default hotkeys
@@ -70,6 +71,8 @@ src/
   alarms.js      Wake-up schedules stored on the bridge
   manage.js      Renaming, rooms/zones, light membership, scenes
   updater.js     Auto-updates via GitHub Releases
+  webserver.js   Optional LAN web server with password login
+  web/           Browser shim and login page
   color.js       Hex to CIE xy conversion
   store.js       JSON config
   renderer/      UI

@@ -16,6 +16,8 @@ const S = {
   alarms: null,
   update: null,
   loginStatus: null,
+  webInfo: null,
+  webForm: { port: '', password: '' },
   manageOpen: new Set(),
   confirmDelete: null,
   newGroup: { name: '', type: 'Room', roomClass: 'Other' },
@@ -547,7 +549,9 @@ function renderHotkeys() {
 
   return h('div', {},
     h('h1', {}, 'Hotkeys'),
-    h('p', { class: 'sub' }, 'Global shortcuts, they work even when Hue Desk is in the background. Click a shortcut to record a new one (Esc to cancel).'),
+    h('p', { class: 'sub' }, api.isWeb
+      ? 'Shortcuts run on the PC where Hue Desk is installed, not in this browser. You can still change them here.'
+      : 'Global shortcuts, they work even when Hue Desk is in the background. Click a shortcut to record a new one (Esc to cancel).'),
     h('div', { class: 'card' },
       h('table', {},
         h('thead', {}, h('tr', {}, h('th', {}, 'Shortcut'), h('th', {}, 'Action'), h('th', {}, 'Room'), h('th', {}, 'Option'), h('th'))),
@@ -653,6 +657,47 @@ function renderUpdateCard(c, set, row) {
       switchEl(c.autoUpdate, (v) => set({ autoUpdate: v }))));
 }
 
+function renderWebCard(row) {
+  const w = S.webInfo;
+  if (!w) {
+    api.invoke('web:status').then((info) => { S.webInfo = info; if (S.tab === 'settings') render(); }).catch(() => {});
+    return h('div', { class: 'card mt-16' }, h('span', { class: 'muted' }, 'Loading web access...'));
+  }
+  const f = S.webForm;
+  const configure = async (patch) => {
+    try {
+      S.webInfo = await api.invoke('web:configure', patch);
+      if (patch.password) {
+        f.password = '';
+        toast('Password saved, all browsers are logged out');
+      }
+    } catch (err) {
+      toast(err.message, true);
+    }
+    render();
+  };
+
+  const status = w.running
+    ? h('div', {}, h('div', { class: 'card-meta' }, 'Open one of these addresses in a browser on the same network:'),
+      w.urls.length ? w.urls.map((u) => h('div', { class: 'url' }, u)) : h('div', { class: 'card-meta' }, 'No network address found'))
+    : h('div', { class: w.error ? 'error-text' : 'card-meta' }, w.error || 'Web access is off');
+
+  return h('div', { class: 'card mt-16' },
+    h('div', { class: 'card-title' }, 'Web access (remote control)'),
+    row('Enable web access', 'Control Hue Desk from a browser on your home network, password protected',
+      switchEl(w.enabled, (v) => configure({ enabled: v }))),
+    row('Password', w.hasPassword ? 'Password is set. Setting a new one logs out every browser.' : 'Required before web access can start (min. 6 characters)',
+      h('div', { class: 'row' },
+        h('input', { type: 'password', placeholder: w.hasPassword ? 'New password' : 'Password', value: f.password, autocomplete: 'new-password', oninput: (e) => { f.password = e.target.value; } }),
+        h('button', { class: 'btn', onclick: () => (f.password ? configure({ password: f.password }) : toast('Enter a password first', true)) }, 'Save'))),
+    row('Port', 'Change this if another program already uses the port',
+      h('div', { class: 'row' },
+        h('input', { type: 'number', class: 'w-80', min: 1024, max: 65535, value: f.port || w.port, oninput: (e) => { f.port = e.target.value; } }),
+        h('button', { class: 'btn', onclick: () => configure({ port: Number(f.port || w.port) }) }, 'Apply'))),
+    status,
+    w.running && h('p', { class: 'card-meta' }, 'First time: if Windows asks whether Hue Desk may communicate on networks, allow it on private networks.'));
+}
+
 function renderSettings() {
   const c = S.config;
   if (S.loginStatus == null) api.invoke('loginItem:status').then((st) => { S.loginStatus = st; if (S.tab === 'settings') render(); }).catch(() => {});
@@ -683,6 +728,9 @@ function renderSettings() {
       row('Start hidden', 'Only show the tray icon on start', switchEl(c.startHidden, (v) => set({ startHidden: v }))),
       row('Close to tray', 'Keep running (and hotkeys active) when closing the window', switchEl(c.closeToTray, (v) => set({ closeToTray: v })))),
     renderUpdateCard(c, set, row),
+    api.isWeb
+      ? h('div', { class: 'card mt-16' }, row('Remote session', 'You are controlling Hue Desk from a browser', h('button', { class: 'btn', onclick: () => api.logout() }, 'Log out')))
+      : renderWebCard(row),
     h('div', { class: 'card mt-16' },
       row('Bridge', c.bridge ? c.bridge.ip : 'Not paired',
         h('button', {

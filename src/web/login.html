@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'" />
+  <title>Hue Desk · Login</title>
+  <link rel="stylesheet" href="/login.css" />
+</head>
+<body>
+  <form id="form" class="box">
+    <div class="brand"><span class="dot"></span> Hue Desk</div>
+    <p class="muted">Remote control. Enter the password set in Hue Desk on the PC.</p>
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" autofocus required />
+    <button type="submit">Log in</button>
+    <p id="error" class="error"></p>
+  </form>
+  <script src="/login.js"></script>
+</body>
+</html>

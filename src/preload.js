@@ -9,11 +9,13 @@ const CHANNELS = [
   'alarms:list', 'alarms:create', 'alarms:toggle', 'alarms:delete',
   'hotkeys:set', 'hotkeys:suspend',
   'update:status', 'update:check', 'update:install', 'loginItem:status',
+  'web:status', 'web:configure',
   'manage:renameLight', 'manage:renameGroup', 'manage:createGroup', 'manage:deleteGroup',
   'manage:setGroupLights', 'manage:moveLight', 'manage:saveScene', 'manage:deleteScene', 'manage:identify',
 ];
 
 contextBridge.exposeInMainWorld('hue', {
+  isWeb: false,
   invoke: async (channel, ...args) => {
     if (!CHANNELS.includes(channel)) throw new Error(`Blocked IPC channel: ${channel}`);
     const res = await ipcRenderer.invoke(channel, ...args);

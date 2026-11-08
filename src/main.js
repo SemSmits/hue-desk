@@ -10,6 +10,7 @@ const { buildWakeSchedule, parseAlarms } = require('./alarms');
 const { createUpdater } = require('./updater');
 const { createManager, ROOM_CLASSES } = require('./manage');
 const { createLoginItem } = require('./loginItem');
+const { createWebServer, hashPassword, lanAddresses } = require('./webserver');
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -30,6 +31,22 @@ let hotkeysPaused = false;
 let snapshotCache = { at: 0, data: null };
 let updater = null;
 let loginItem = null;
+let web = null;
+let webStatus = { running: false, error: null };
+const ipcHandlers = {};
+
+// Channels a logged-in browser may call. Web settings stay PC-only so a remote
+// session can't change the password or turn the web server off.
+const WEB_CHANNELS = new Set([
+  'config:get', 'config:set', 'meta:get',
+  'bridge:discover', 'bridge:pair', 'bridge:forget',
+  'hue:snapshot', 'hue:setGroup', 'hue:setLight', 'hue:action',
+  'alarms:list', 'alarms:create', 'alarms:toggle', 'alarms:delete',
+  'hotkeys:set',
+  'update:status', 'update:check', 'update:install', 'loginItem:status',
+  'manage:renameLight', 'manage:renameGroup', 'manage:createGroup', 'manage:deleteGroup',
+  'manage:setGroupLights', 'manage:moveLight', 'manage:saveScene', 'manage:deleteScene', 'manage:identify',
+]);
 
 // ---------- Hue client & state ----------
 
@@ -50,6 +67,7 @@ async function getSnapshot(force = false) {
 
 function notifyRenderer(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+  if (web) web.broadcast(channel, payload);
 }
 
 const runner = createActionRunner({
@@ -236,7 +254,54 @@ function applyHotkeys() {
 
 // ---------- IPC ----------
 
+/** Config as seen by the UI: no bridge key or password hash. */
+function publicConfig(cfg) {
+  const { web: webCfg = {}, bridge, ...rest } = cfg;
+  return {
+    ...rest,
+    bridge: bridge ? { ip: bridge.ip } : null,
+    web: { enabled: Boolean(webCfg.enabled), port: webCfg.port, hasPassword: Boolean(webCfg.password) },
+  };
+}
+
+// ---------- Web access ----------
+
+function webInfo() {
+  const { port } = store.get().web;
+  return {
+    ...publicConfig(store.get()).web,
+    running: webStatus.running,
+    error: webStatus.error,
+    urls: webStatus.running ? lanAddresses().map((ip) => `http://${ip}:${port}`) : [],
+  };
+}
+
+async function applyWeb() {
+  const cfg = store.get().web;
+  if (web) await web.stop();
+  webStatus = { running: false, error: null };
+  if (!cfg.enabled) return webInfo();
+  if (!cfg.password) {
+    webStatus.error = 'Set a password first';
+    return webInfo();
+  }
+  web = web || createWebServer({
+    getPassword: () => store.get().web.password,
+    handlers: ipcHandlers,
+    allowedChannels: WEB_CHANNELS,
+    srcDir: __dirname,
+  });
+  try {
+    await web.start(cfg.port);
+    webStatus.running = true;
+  } catch (err) {
+    webStatus.error = err.message;
+  }
+  return webInfo();
+}
+
 function handle(channel, fn) {
+  ipcHandlers[channel] = fn;
   ipcMain.handle(channel, async (_event, ...args) => {
     try {
       return { ok: true, data: await fn(...args) };
@@ -247,7 +312,7 @@ function handle(channel, fn) {
 }
 
 function registerIpc() {
-  handle('config:get', () => store.get());
+  handle('config:get', () => publicConfig(store.get()));
   handle('meta:get', () => ({ version: app.getVersion(), roomClasses: ROOM_CLASSES, actions: ACTIONS, presets: Object.fromEntries(Object.entries(PRESETS).map(([k, p]) => [k, p.label])) }));
 
   handle('config:set', (patch) => {
@@ -260,7 +325,26 @@ function registerIpc() {
       else updater.stop();
     }
     rebuildTrayMenu();
-    return next;
+    return publicConfig(next);
+  });
+
+  // PC-only (not in WEB_CHANNELS)
+  handle('web:status', () => webInfo());
+  handle('web:configure', async ({ enabled, port, password } = {}) => {
+    const current = store.get().web;
+    const next = { ...current };
+    if (typeof enabled === 'boolean') next.enabled = enabled;
+    if (port !== undefined) {
+      const p = Number(port);
+      if (!Number.isInteger(p) || p < 1024 || p > 65535) throw new Error('Port must be between 1024 and 65535');
+      next.port = p;
+    }
+    if (password) {
+      next.password = hashPassword(password);
+      if (web) web.resetSessions(); // log out every browser
+    }
+    store.set({ web: next });
+    return applyWeb();
   });
 
   const manager = createManager(() => client);
@@ -364,6 +448,7 @@ app.whenReady().then(() => {
   }
   createTray();
   applyHotkeys();
+  applyWeb().catch(() => {});
   getSnapshot().catch(() => {});
   if (store.get().autoUpdate) updater.start();
 });

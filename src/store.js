@@ -25,6 +25,7 @@ const DEFAULTS = {
   startHidden: false,
   closeToTray: true,
   autoUpdate: true,
+  web: { enabled: false, port: 8420, password: null }, // password = { salt, hash }
 };
 
 class Store {
